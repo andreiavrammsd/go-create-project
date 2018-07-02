@@ -3,11 +3,11 @@ package main
 // https://gist.github.com/m4ng0squ4sh/92462b38df26839a3ca324697c8cba04
 
 import (
-	"path/filepath"
-	"io"
-	"os"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 )
 
 // CopyFile copies the contents of the file named src to the file named
@@ -20,7 +20,11 @@ func CopyFile(src, dst string) (err error) {
 	if err != nil {
 		return
 	}
-	defer in.Close()
+	defer func() {
+		if e := in.Close(); e != nil {
+			err = e
+		}
+	}()
 
 	out, err := os.Create(dst)
 	if err != nil {
@@ -98,7 +102,7 @@ func CopyDir(src string, dst string) (err error) {
 			}
 		} else {
 			// Skip symlinks.
-			if entry.Mode() & os.ModeSymlink != 0 {
+			if entry.Mode()&os.ModeSymlink != 0 {
 				continue
 			}
 

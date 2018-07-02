@@ -1,17 +1,16 @@
 package main
 
 import (
-	"os"
 	"fmt"
-	"strings"
-	"os/exec"
-	"path/filepath"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
-const repositoryUrl = "git@github.com:andreiavrammsd/go-create-project.git"
+const repositoryURL = "git@github.com:andreiavrammsd/go-create-project.git"
 const templateTmpDir = "/tmp/go-create-project-template"
 const templateTmpDirProject = templateTmpDir + "/template"
 const licenseFilename = "LICENSE"
@@ -21,6 +20,17 @@ const licenseCopyrightNamePlaceholder = "<name>"
 var git = NewGit()
 
 func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("Project name not specified")
+		return
+	}
+
+	projectName := strings.Trim(os.Args[1], " ")
+	if len(projectName) == 0 {
+		fmt.Println("Empty project name specified")
+		return
+	}
+
 	goPath := os.Getenv("GOPATH")
 	if len(goPath) == 0 {
 		fmt.Println("GOPATH not defined")
@@ -37,16 +47,6 @@ func main() {
 		fmt.Println("Git not installed or not set up globally")
 		return
 	}
-	
-	if len(os.Args) < 2 {
-		fmt.Println("Project name not specified")
-		return
-	}
-	projectName := strings.Trim(os.Args[1], " ")
-	if len(projectName) == 0 {
-		fmt.Println("Empty project name specified")
-		return
-	}
 
 	projectPath := filepath.Clean(goPath + "/src/" + projectName)
 	if _, err := os.Stat(projectPath); err == nil {
@@ -54,28 +54,41 @@ func main() {
 		return
 	}
 
-	GetTemplate(repositoryUrl, templateTmpDir)
+	_, _ = git.Clone(repositoryURL, templateTmpDir)
 
 	err = CopyDir(templateTmpDirProject, projectPath)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 
-	GitSetup(projectPath)
-	Cleanup(templateTmpDir)
+	var out []byte
+
+	out, err = gitSetup(projectPath)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(string(out))
+
+	err = cleanup(templateTmpDir)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	fmt.Printf("Created new project at: %s\n", projectPath)
 }
 
-func GetTemplate(repositoryUrl, templateTmpDir string) {
-	exec.Command("git", "clone", repositoryUrl, templateTmpDir).Run()
-}
+func gitSetup(dst string) (out []byte, err error) {
+	if err = os.Chdir(dst); err != nil {
+		return
+	}
 
-func GitSetup(dst string) {
-	os.Chdir(dst)
+	if out, err = git.Init(); err != nil {
+		return
+	}
 
-	git.Init()
-	
 	read, err := ioutil.ReadFile(licenseFilename)
 	if err != nil {
 		return
@@ -92,13 +105,21 @@ func GitSetup(dst string) {
 		return
 	}
 
-	git.Add(".gitignore")
-	git.Add("LICENSE")
-	git.Commit("Initial commit.")
-	//exec.Command("git", "add", ".gitignore", "LICENSE").Run()
-	//exec.Command("git", "commit", "-m", "Initial commit.").Run()
+	if out, err = git.Add(".gitignore"); err != nil {
+		return
+	}
+
+	if out, err = git.Add("LICENSE"); err != nil {
+		return
+	}
+
+	if out, err = git.Commit("Initial commit."); err != nil {
+		return
+	}
+
+	return
 }
 
-func Cleanup (dir string) {
-	os.RemoveAll(dir)
+func cleanup(dir string) error {
+	return os.RemoveAll(dir)
 }
